@@ -29,6 +29,12 @@ Un bot de Telegram que entiende lenguaje natural y gestiona tus tareas en Notion
 
 ---
 
+## 🖼️ Flujo en n8n
+
+![Flujo de automatización en n8n](imagenes/flujo-n8n.png)
+
+---
+
 ## 🏗️ Arquitectura del Flujo
 
 ```
@@ -263,5 +269,6 @@ ngrok http 5678
 ---
 
 *Proyecto construido con n8n + Groq (LLaMA 3) + Notion + Telegram*
+
 
 
