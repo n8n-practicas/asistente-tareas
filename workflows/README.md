@@ -269,6 +269,3 @@ ngrok http 5678
 ---
 
 *Proyecto construido con n8n + Groq (LLaMA 3) + Notion + Telegram*
-
-
-
