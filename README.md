@@ -264,7 +264,6 @@ ngrok http 5678
 - 📊 **Resumen** — `cuántas tareas tengo pendientes?`
 - 🏷️ **Prioridades** — `agregar urgente: presentación`
 - 📅 **Fechas límite** — `tengo que entregar el informe el viernes`
-- 👥 **Multi-usuario** — cada persona con sus propias tareas
 
 ---
 
