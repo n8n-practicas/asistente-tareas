@@ -1,0 +1,551 @@
+{
+  "name": "asistente-tareas",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7ab93082-f8a4-4155-b5ba-25eda8d47ade",
+              "leftValue": "={{ $json.accion }}",
+              "rightValue": "agregar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        608,
+        16
+      ],
+      "id": "c61bc46d-0e63-4371-b012-ba842d55d111",
+      "name": "¿Empieza por agregar?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b1a2ddcc-f759-48d3-80d6-22426cfc3128",
+              "leftValue": "={{ $json.accion }}",
+              "rightValue": "listar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        768,
+        224
+      ],
+      "id": "20b2de64-8890-4584-a121-a210bd05dd29",
+      "name": "¿Empieza por listar?"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -384,
+        16
+      ],
+      "id": "839a840d-0f18-4df2-b9c6-745418ce5030",
+      "name": "Mensaje de Telegram",
+      "webhookId": "cd69adc0-f89b-4bc7-b691-fbbf72ae4d6a",
+      "credentials": {
+        "telegramApi": {
+          "id": "VRiW7EkPjldX0V2S",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "30ca479e7a8180abbe14f1fc14688f3a9",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        -176,
+        16
+      ],
+      "id": "dc231f4d-4eab-4775-b3fa-bfe01f42a374",
+      "name": "Obtener todas las tareas",
+      "credentials": {
+        "notionApi": {
+          "id": "a7TLOQGrkloaJFuf",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const tareas = $input.all().map(t =>\n  t.json.property_nombre).filter(t => t);\n\nconst mensaje = $('Mensaje de Telegram').first().json.message.text;\n\nreturn [{ json: { tareas: tareas, mensaje: mensaje } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        16
+      ],
+      "id": "40c920fb-6fff-4159-9cfd-73d241d7a8fe",
+      "name": "Preparar contexto"
+    },
+    {
+      "parameters": {
+        "jsCode": "const respuesta = $input.first().json.choices[0].message.content;\nconst parsed = JSON.parse(respuesta);\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        16
+      ],
+      "id": "4726d585-a146-4843-93d6-f3de84db9021",
+      "name": "Extraer respuesta de Groq"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "30ca479e7a8180abbe14f1fc14688f3a",
+          "mode": "id"
+        },
+        "limit": 1,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "key": "Nombre|title",
+              "condition": "contains",
+              "titleValue": "={{ $json.tarea }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        256
+      ],
+      "id": "a8996f11-97e0-43ea-8ed1-c0b658de9f7e",
+      "name": "Buscar tarea a completar",
+      "credentials": {
+        "notionApi": {
+          "id": "a7TLOQGrkloaJFuf",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "groqApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Tengo estas tareas en mi lista: {{ $json.tareas }}\\nEl usuario dijo: \\\"{{ $json.mensaje }}\\\"\\nAnaliza el mensaje y responde SOLO con JSON puro sin markdown ni explicaciones:\\n{\\\"accion\\\": \\\"agregar\\\" o \\\"listar\\\" o \\\"completar\\\", \\\"tarea\\\": \\\"nombre exacto de la tarea de la lista si es completar, o nombre nuevo si es agregar, o null si es listar\\\"}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        240,
+        16
+      ],
+      "id": "7959acc6-9fc0-45e8-9db2-15167bc7027f",
+      "name": "Groq interpreta mensaje",
+      "credentials": {
+        "groqApi": {
+          "id": "OYB3SoiLtfjaBI7F",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "30ca479e7a8180abbe14f1fc14688f3a",
+          "mode": "id"
+        },
+        "title": "={{ $json.tarea }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Estado|select",
+              "selectValue": "Pendiente"
+            },
+            {
+              "key": "Fecha|date",
+              "date": "={{ $now.toISO() }}"
+            },
+            {
+              "key": "Estado|select",
+              "selectValue": "Pendiente"
+            }
+          ]
+        },
+        "blockUi": {
+          "blockValues": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        848,
+        -160
+      ],
+      "id": "6cb0098c-79de-4c56-994f-6d56e3e52db6",
+      "name": "Agregar tarea en Notion",
+      "credentials": {
+        "notionApi": {
+          "id": "a7TLOQGrkloaJFuf",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "30ca479e7a8180abbe14f1fc14688f3a",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "key": "Estado|select",
+              "condition": "equals",
+              "selectValue": "Pendiente"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1056,
+        48
+      ],
+      "id": "7e5f5c81-e6b1-4914-8953-241979370770",
+      "name": "Obtener tareas",
+      "credentials": {
+        "notionApi": {
+          "id": "a7TLOQGrkloaJFuf",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{ $('Buscar tarea a completar').first().json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"properties\": {\n    \"Estado\": {\n      \"select\": {\n        \"name\": \"Completada\"\n      }\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1280,
+        304
+      ],
+      "id": "462e960b-04db-48ee-aa67-1fb740e55b0c",
+      "name": "Marcar tarea completada",
+      "credentials": {
+        "notionApi": {
+          "id": "a7TLOQGrkloaJFuf",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Mensaje de Telegram').item.json.message.chat.id }}",
+        "text": "=📋 Tus tareas pendientes:\n{{ $input.all().map(t => '• ' + t.json.property_nombre).join('\\n') }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        -176
+      ],
+      "id": "efab52a3-9a11-4031-bd88-17df28e044e8",
+      "name": "Enviar lista de tareas",
+      "webhookId": "b1c14b8b-d4e7-40e7-905c-ca96a6af70c1",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "VRiW7EkPjldX0V2S",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Mensaje de Telegram').item.json.message.chat.id }}",
+        "text": "=✅ Listo! Agregué la tarea: \"{{ $('Extraer respuesta de Groq').first().json.tarea }}\"",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1424,
+        80
+      ],
+      "id": "b27388dc-72cd-4082-9dfc-adb4f544815c",
+      "name": "Confirmar tarea agregada",
+      "webhookId": "771acf75-bb7d-4340-bcee-a913e2c4da45",
+      "credentials": {
+        "telegramApi": {
+          "id": "VRiW7EkPjldX0V2S",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Mensaje de Telegram').item.json.message.chat.id }}",
+        "text": "=✅ Marqué como completada: \"{{ $('Extraer respuesta de Groq').item.json.tarea }}\"",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1648,
+        240
+      ],
+      "id": "e255bc90-4085-4ed0-b313-9439ab35a591",
+      "name": "Confirmar tarea completada",
+      "webhookId": "5baee353-8154-4aed-9d86-66f28a94c213",
+      "credentials": {
+        "telegramApi": {
+          "id": "VRiW7EkPjldX0V2S",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "¿Empieza por agregar?": {
+      "main": [
+        [
+          {
+            "node": "Agregar tarea en Notion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Empieza por listar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Empieza por listar?": {
+      "main": [
+        [
+          {
+            "node": "Obtener tareas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar tarea a completar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensaje de Telegram": {
+      "main": [
+        [
+          {
+            "node": "Obtener todas las tareas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener todas las tareas": {
+      "main": [
+        [
+          {
+            "node": "Preparar contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar contexto": {
+      "main": [
+        [
+          {
+            "node": "Groq interpreta mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer respuesta de Groq": {
+      "main": [
+        [
+          {
+            "node": "¿Empieza por agregar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar tarea a completar": {
+      "main": [
+        [
+          {
+            "node": "Marcar tarea completada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq interpreta mensaje": {
+      "main": [
+        [
+          {
+            "node": "Extraer respuesta de Groq",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agregar tarea en Notion": {
+      "main": [
+        [
+          {
+            "node": "Confirmar tarea agregada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener tareas": {
+      "main": [
+        [
+          {
+            "node": "Enviar lista de tareas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar tarea completada": {
+      "main": [
+        [
+          {
+            "node": "Confirmar tarea completada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "635c88ca-fa62-4bb8-9e0e-9c70514392b2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "25336b199b18e15443465001f10fbe762cc52048ced88602946f039836c07baf"
+  },
+  "id": "RECYRqFIaqQFyFvz",
+  "tags": []
+}
