@@ -1,270 +1,174 @@
-# 🤖 Asistente de Tareas con IA
-### Telegram → n8n → Groq → Notion
+# 🤖 Asistente de Tareas — Bot de Telegram con Notion y Groq
+
+Un flujo de automatización en **n8n** que permite gestionar tareas en **Notion** directamente desde **Telegram**, usando **Groq (LLaMA 3.3)** como motor de interpretación de lenguaje natural.
 
 ---
 
-## 📋 Requisitos previos
+## 📌 ¿Qué hace este proyecto?
 
-Antes de empezar necesitas tener instalado y configurado lo siguiente:
+El bot escucha mensajes en Telegram y, sin necesidad de comandos exactos, entiende la intención del usuario gracias a un modelo de lenguaje. Puede:
 
-| Herramienta | Para qué sirve | Link |
-|-------------|---------------|------|
-| **Docker Desktop** | Correr n8n localmente | [docker.com](https://www.docker.com/products/docker-desktop) |
-| **n8n** | Motor de automatización | [n8n.io](https://n8n.io) |
-| **ngrok** | Exponer n8n al internet para recibir mensajes de Telegram | [ngrok.com](https://ngrok.com) |
-| **Telegram Bot** | Canal de comunicación con el usuario | @BotFather en Telegram |
-| **Groq** | IA que interpreta lenguaje natural (gratis) | [console.groq.com](https://console.groq.com) |
-| **Notion** | Base de datos donde se guardan las tareas | [notion.so](https://notion.so) |
+- ✅ **Agregar** una nueva tarea a la base de datos de Notion
+- 📋 **Listar** las tareas pendientes
+- ☑️ **Marcar como completada** una tarea existente
 
----
-
-## ¿Qué hace?
-
-Un bot de Telegram que entiende lenguaje natural y gestiona tus tareas en Notion automáticamente. No necesitas comandos exactos — simplemente escríbele como si fuera una persona.
-
-**Ejemplos de uso:**
-- `tengo que pasear el perro la otra semana` → agrega la tarea
-- `qué tengo pendiente?` → lista todas las tareas
-- `ya llamé al médico` → marca la tarea como completada
+El usuario simplemente escribe en lenguaje natural, por ejemplo:
+- *"Agrega comprar leche"*
+- *"¿Qué tengo pendiente?"*
+- *"Ya terminé el informe mensual"*
 
 ---
 
-## 🖼️ Flujo en n8n
+## 🖼️ Imágenes del proyecto
 
-![Flujo de automatización en n8n](imagenes/flujo-n8n.png)
+### Flujo principal en n8n
+
+> _Insertar aquí captura de pantalla del flujo completo en n8n_
+
+![Flujo principal](./imagenes/flujo-n8n.png)
 
 ---
 
-## 🏗️ Arquitectura del Flujo
+### Listado de tareas en Notion
+
+> _Insertar aquí captura de pantalla de la base de datos de Notion con las tareas_
+
+![Notion - Listado de tareas](./imagenes/notion-n8n.png)
+
+---
+
+### Conversación de ejemplo con el bot en Telegram
+
+> _Insertar aquí captura de pantalla de la conversación en Telegram_
+
+![Telegram - Conversación de ejemplo](./imagenes/telegram-n8n.png)
+
+---
+
+## 🧱 Arquitectura del flujo
 
 ```
-Mensaje de Telegram
-       ↓
-Obtener todas las tareas (Notion)
-       ↓
-Preparar contexto (Code JS)
-       ↓
-Groq interpreta mensaje → Groq API
-       ↓
-Extraer respuesta de Groq (Code JS)
-       ↓
-¿Empieza por agregar?
-   ↓ true                    ↓ false
-Agregar tarea en Notion    ¿Empieza por listar?
-       ↓                      ↓ true        ↓ false
-Confirmar tarea agregada  Obtener tareas  ¿Empieza por completar?
-                               ↓                    ↓ true
-                         Enviar lista        Buscar tarea a completar
-                         de tareas                   ↓
-                                             Marcar tarea completada
-                                                      ↓
-                                             Confirmar tarea completada
+Telegram (trigger)
+    └─► Obtener todas las tareas (Notion)
+            └─► Preparar contexto
+                    └─► Groq interpreta mensaje (LLaMA 3.3)
+                            └─► Extraer respuesta de Groq
+                                    ├─► [agregar] Agregar tarea en Notion → Confirmar tarea agregada (Telegram)
+                                    ├─► [listar]  Obtener tareas pendientes (Notion) → Enviar lista (Telegram)
+                                    └─► [completar] Buscar tarea → Marcar como completada → Confirmar (Telegram)
 ```
 
 ---
 
-## 🧩 Nodos y Configuración
+## 🔩 Nodos del flujo
 
-### 1. Mensaje de Telegram
-- **Tipo:** Telegram Trigger
-- **Evento:** Updates: message
-- **Función:** Escucha todos los mensajes que llegan al bot
-
----
-
-### 2. Obtener todas las tareas
-- **Tipo:** Notion → Get Many Database Pages
-- **Database:** ID de tu base de datos
-- **Return All:** ✅ Activado
-- **Función:** Trae todas las tareas existentes para pasárselas a Groq como contexto
-
----
-
-### 3. Preparar contexto
-- **Tipo:** Code in JavaScript
-- **Código:**
-```javascript
-const tareas = $input.all().map(t => t.json.property_nombre).filter(t => t);
-const mensaje = $('TelegramTrigger').first().json.message.text;
-return [{ json: { tareas: tareas, mensaje: mensaje } }];
-```
-- **Función:** Combina la lista de tareas con el mensaje del usuario
+| Nodo | Tipo | Descripción |
+|------|------|-------------|
+| `Mensaje de Telegram` | Trigger | Escucha nuevos mensajes del bot |
+| `Obtener todas las tareas` | Notion | Recupera todas las páginas de la base de datos para dar contexto al LLM |
+| `Preparar contexto` | Code (JS) | Construye el payload con la lista de tareas y el mensaje del usuario |
+| `Groq interpreta mensaje` | HTTP Request | Envía el contexto a la API de Groq y recibe la acción a ejecutar en formato JSON |
+| `Extraer respuesta de Groq` | Code (JS) | Parsea el JSON devuelto por el modelo |
+| `¿Empieza por agregar?` | IF | Ramifica si la acción es `agregar` |
+| `¿Empieza por listar?` | IF | Ramifica si la acción es `listar` o `completar` |
+| `Agregar tarea en Notion` | Notion | Crea una nueva página en la base de datos con estado `Pendiente` |
+| `Obtener tareas` | Notion | Filtra y devuelve solo las tareas con estado `Pendiente` |
+| `Buscar tarea a completar` | Notion | Busca la tarea por nombre para obtener su ID |
+| `Marcar tarea completada` | HTTP Request (PATCH) | Actualiza el estado de la página en Notion a `Completada` vía API |
+| `Enviar lista de tareas` | Telegram | Responde con el listado de pendientes formateado |
+| `Confirmar tarea agregada` | Telegram | Confirma al usuario que la tarea fue creada |
+| `Confirmar tarea completada` | Telegram | Confirma al usuario que la tarea fue marcada como completada |
 
 ---
 
-### 4. Groq interpreta mensaje
-- **Tipo:** HTTP Request
-- **Method:** POST
-- **URL:** `https://api.groq.com/openai/v1/chat/completions`
-- **Headers:**
-  - `Content-Type: application/json`
-- **Body:**
+## 🛠️ Requisitos y configuración
+
+### Credenciales necesarias
+
+Antes de importar el flujo en n8n, configura las siguientes credenciales:
+
+| Servicio | Tipo de credencial en n8n | Dónde obtenerla |
+|----------|--------------------------|-----------------|
+| **Telegram** | `telegramApi` | [BotFather](https://t.me/BotFather) — crea un bot y copia el token |
+| **Notion** | `notionApi` | [Notion Integrations](https://www.notion.so/my-integrations) — crea una integración interna |
+| **Groq** | `groqApi` | [console.groq.com](https://console.groq.com) — genera una API key |
+
+### Base de datos de Notion
+
+La base de datos debe tener las siguientes propiedades:
+
+| Propiedad | Tipo | Valores posibles |
+|-----------|------|-----------------|
+| `Nombre` | Title | Nombre de la tarea |
+| `Estado` | Select | `Pendiente`, `Completada` |
+| `Fecha` | Date | Fecha de creación |
+
+> ⚠️ Asegúrate de compartir la base de datos con tu integración de Notion (botón **Conectar** en la esquina superior derecha de la base de datos).
+
+### IDs a actualizar en el flujo
+
+Después de importar el JSON, actualiza el ID de la base de datos de Notion en los siguientes nodos:
+
+- `Obtener todas las tareas`
+- `Agregar tarea en Notion`
+- `Obtener tareas`
+- `Buscar tarea a completar`
+
+---
+
+## 🚀 Cómo usar
+
+1. Importa el archivo `asistente-tareas.json` en tu instancia de n8n (**Workflows → Import**).
+2. Configura las credenciales de Telegram, Notion y Groq.
+3. Actualiza el ID de tu base de datos de Notion en los nodos correspondientes.
+4. Activa el flujo.
+5. Abre tu bot en Telegram y empieza a escribir en lenguaje natural.
+
+---
+
+## 💬 Ejemplos de uso
+
+| Mensaje del usuario | Acción ejecutada |
+|--------------------|-----------------|
+| `Agrega llamar al médico` | Crea tarea "llamar al médico" en Notion |
+| `¿Qué tengo pendiente?` | Lista todas las tareas con estado Pendiente |
+| `Ya terminé el reporte` | Busca "reporte" en Notion y lo marca como Completada |
+| `Añade revisar el correo` | Crea tarea "revisar el correo" en Notion |
+
+---
+
+## ⚙️ Modelo de lenguaje
+
+El flujo utiliza **LLaMA 3.3 70B Versatile** a través de la API de Groq. El modelo recibe:
+
+- La lista actual de tareas en Notion (para identificar tareas existentes al completar)
+- El mensaje del usuario
+
+Y devuelve siempre un JSON estructurado con dos campos:
+
 ```json
 {
-  "model": "llama3-8b-8192",
-  "messages": [
-    {
-      "role": "system",
-      "content": "Tengo estas tareas en mi lista: {{ $json.tareas }}\n\nAnaliza el mensaje y responde SOLO con JSON puro sin markdown:\n{\"accion\": \"agregar\" o \"listar\" o \"completar\", \"tarea\": \"nombre exacto de la tarea de la lista si es completar, o nombre nuevo si es agregar, o null si es listar\"}"
-    },
-    {
-      "role": "user",
-      "content": "{{ $json.mensaje }}"
-    }
-  ]
+  "accion": "agregar" | "listar" | "completar",
+  "tarea": "nombre de la tarea o null si es listar"
 }
 ```
 
 ---
 
-### 5. Extraer respuesta de Groq
-- **Tipo:** Code in JavaScript
-- **Código:**
-```javascript
-const respuesta = $input.first().json.choices[0].message.content;
-const parsed = JSON.parse(respuesta);
-return [{ json: parsed }];
+## 📁 Estructura del repositorio
+
 ```
-- **Función:** Extrae y parsea el JSON que devuelve Groq
-
----
-
-### 6. ¿Empieza por agregar?
-- **Tipo:** IF
-- **Condición:** `{{ $json.accion }}` **is equal to** `agregar`
-
----
-
-### 7. Agregar tarea en Notion
-- **Tipo:** Notion → Create Database Page
-- **Database:** ID de tu base de datos
-- **Title:** `{{ $json.tarea }}`
-- **Estado:** Pendiente
-- **Fecha:** `{{ $now.toISO() }}`
-
----
-
-### 8. Confirmar tarea agregada
-- **Tipo:** Telegram → Send Message
-- **Chat ID:** `{{ $('TelegramTrigger').item.json.message.chat.id }}`
-- **Text:** `✅ Listo! Agregué la tarea: "{{ $('Extraer respuesta de Groq').first().json.tarea }}"`
-
----
-
-### 9. ¿Empieza por listar?
-- **Tipo:** IF
-- **Condición:** `{{ $json.accion }}` **is equal to** `listar`
-
----
-
-### 10. Obtener tareas
-- **Tipo:** Notion → Get Many Database Pages
-- **Database:** ID de tu base de datos
-- **Return All:** ✅ Activado
-
----
-
-### 11. Enviar lista de tareas
-- **Tipo:** Telegram → Send Message
-- **Settings → Execute Once:** ✅ Activado
-- **Chat ID:** `{{ $('TelegramTrigger').item.json.message.chat.id }}`
-- **Text:**
-```
-📋 Tus tareas pendientes:
-{{ $input.all().map(t => '• ' + t.json.property_nombre).join('\n') }}
+asistente-tareas/
+├── README.md
+├── asistente-tareas.json       # Flujo exportado de n8n
+└── imagenes/
+    ├── flujo-n8n.png
+    ├── notion-n8n.png
+    └── telegram-n8n.png
 ```
 
 ---
 
-### 12. ¿Empieza por completar?
-- **Tipo:** IF
-- **Condición:** `{{ $json.accion }}` **is equal to** `completar`
+## 📄 Licencia
 
----
-
-### 13. Buscar tarea a completar
-- **Tipo:** Notion → Get Many Database Pages
-- **Filter → Property:** Nombre
-- **Condition:** Equals
-- **Value:** `{{ $('Extraer respuesta de Groq').first().json.tarea }}`
-
----
-
-### 14. Marcar tarea completada
-- **Tipo:** HTTP Request (Notion API directa)
-- **Method:** PATCH
-- **URL:** `https://api.notion.com/v1/pages/{{ $json.id }}`
-- **Headers:**
-  - `Notion-Version: 2022-06-28`
-  - `Content-Type: application/json`
-- **Body:**
-```json
-{
-  "properties": {
-    "Estado": {
-      "select": {
-        "name": "Completada"
-      }
-    }
-  }
-}
-```
-
----
-
-### 15. Confirmar tarea completada
-- **Tipo:** Telegram → Send Message
-- **Chat ID:** `{{ $('TelegramTrigger').item.json.message.chat.id }}`
-- **Text:** `✅ Marqué como completada: "{{ $('Extraer respuesta de Groq').first().json.tarea }}"`
-
----
-
-## 🗃️ Base de Datos en Notion
-
-| Propiedad | Tipo | Descripción |
-|-----------|------|-------------|
-| Nombre | Title | Nombre de la tarea |
-| Estado | Select | Pendiente / Completada |
-| Fecha | Date | Fecha de creación (con hora) |
-
----
-
-## 🚀 Cómo levantar el proyecto
-
-```bash
-# 1. Iniciar Docker Desktop
-# 2. En la carpeta del proyecto:
-docker compose up -d
-
-# 3. Levantar ngrok:
-ngrok http 5678
-
-# 4. Entrar a n8n:
-# http://localhost:5678
-
-# 5. Activar el workflow (toggle verde)
-```
-
----
-
-## 🔑 Credenciales necesarias
-
-| Servicio | Dónde obtenerla |
-|----------|----------------|
-| Telegram Bot Token | @BotFather en Telegram |
-| Groq API Key | console.groq.com (gratis) |
-| Notion Token | notion.so/my-integrations |
-| Notion Database ID | URL de tu base de datos |
-
----
-
-## 💡 Posibles mejoras futuras
-
-- 🗓️ **Recordatorios** — `recordar: tarea | mañana 9am`
-- 📊 **Resumen** — `cuántas tareas tengo pendientes?`
-- 🏷️ **Prioridades** — `agregar urgente: presentación`
-- 📅 **Fechas límite** — `tengo que entregar el informe el viernes`
-
----
-
-*Proyecto construido con n8n + Groq (LLaMA 3) + Notion + Telegram*
+Este proyecto es de uso libre. Puedes modificarlo y adaptarlo a tus necesidades.
