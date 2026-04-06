@@ -23,7 +23,6 @@ El usuario simplemente escribe en lenguaje natural, por ejemplo:
 
 ### Flujo principal en n8n
 
-> _Insertar aquí captura de pantalla del flujo completo en n8n_
 
 ![Flujo principal](./imagenes/flujo-n8n.png)
 
@@ -31,7 +30,6 @@ El usuario simplemente escribe en lenguaje natural, por ejemplo:
 
 ### Listado de tareas en Notion
 
-> _Insertar aquí captura de pantalla de la base de datos de Notion con las tareas_
 
 ![Notion - Listado de tareas](./imagenes/notion-n8n.png)
 
@@ -39,7 +37,6 @@ El usuario simplemente escribe en lenguaje natural, por ejemplo:
 
 ### Conversación de ejemplo con el bot en Telegram
 
-> _Insertar aquí captura de pantalla de la conversación en Telegram_
 
 ![Telegram - Conversación de ejemplo](./imagenes/telegram-n8n.png)
 
